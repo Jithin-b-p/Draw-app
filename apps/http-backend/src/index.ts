@@ -7,18 +7,19 @@ import {
   SignInSchema,
   CreateRoomSchema,
 } from "@repo/common/validation";
+import { prismaClient } from "@repo/db/client";
 
 const app = express();
 
 app.post("/signin", (req, res) => {
-  const data = SignInSchema.safeParse(req.body);
-  if (!data.success) {
+  const parsedData = SignInSchema.safeParse(req.body);
+  if (!parsedData.success) {
     res.json({
       message: "invalid inputs",
     });
+
     return;
   }
-
   const userId = 1;
   const token = jwt.sign(
     {
@@ -30,9 +31,9 @@ app.post("/signin", (req, res) => {
   res.json({ token });
 });
 
-app.post("/signup", (req, res) => {
-  const data = CreateUserSchema.safeParse(req.body);
-  if (!data.success) {
+app.post("/signup", async (req, res) => {
+  const parsedData = CreateUserSchema.safeParse(req.body);
+  if (!parsedData.success) {
     res.json({
       message: "invlid inputs",
     });
@@ -40,9 +41,21 @@ app.post("/signup", (req, res) => {
     return;
   }
 
-  res.json({
-    userId: 1,
-  });
+  try {
+    await prismaClient.user.create({
+      data: {
+        email: parsedData.data.username,
+        password: parsedData.data.password,
+        name: parsedData.data.name,
+      },
+    });
+
+    res.json({
+      userId: 1,
+    });
+  } catch (error) {
+    res.status(411).json({ message: "user already exists!!" });
+  }
 });
 
 app.post("/room", middleware, (req, res) => {
