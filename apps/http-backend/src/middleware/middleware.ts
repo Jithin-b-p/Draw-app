@@ -10,12 +10,11 @@ export const middleware = (
 ) => {
   const token = req.headers["authorization"] ?? "";
 
-  const decoded = jwt.verify(token, JWT_SECRET) as JwtPayload;
-
-  if (decoded) {
+  try {
+    const decoded = jwt.verify(token, JWT_SECRET) as JwtPayload;
     req.userId = decoded.userId;
     next();
-  } else {
+  } catch (error) {
     res.status(403).json({
       message: "unauthorised",
     });

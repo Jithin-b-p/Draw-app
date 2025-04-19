@@ -8,7 +8,8 @@ import {
   CreateRoomSchema,
 } from "@repo/common/validation";
 import { prismaClient } from "@repo/db/client";
-import { hashPassword } from "./util/helper";
+import { comparePassword, hashPassword } from "./util/helper";
+import { AuthRequest } from "./@types/express";
 
 const app = express();
 
@@ -24,21 +25,43 @@ app.post("/signin", async (req, res) => {
     return;
   }
 
-  const userId = 1;
-  const token = jwt.sign(
-    {
-      userId,
-    },
-    JWT_SECRET
-  );
+  let user = null;
+  try {
+    user = await prismaClient.user.findUnique({
+      where: {
+        email: parsedData.data.username,
+      },
+    });
+  } catch (error) {
+    res.status(500).json({ message: "server error!!" });
+  }
 
-  res.json({ token });
+  if (!user) {
+    res.status(401).json({ message: "user not found!!" });
+    return;
+  }
+
+  const verify =
+    user && (await comparePassword(parsedData.data.password, user.password));
+
+  if (verify) {
+    const userId = user && user.id;
+    const token = jwt.sign(
+      {
+        userId,
+      },
+      JWT_SECRET
+    );
+
+    res.json({ token });
+  } else {
+    res.status(401).json({ message: "Password incorrect!!" });
+  }
 });
 
 app.post("/signup", async (req, res) => {
   const parsedData = CreateUserSchema.safeParse(req.body);
   if (!parsedData.success) {
-    console.log(parsedData.error);
     res.json({
       message: "invalid inputs",
     });
@@ -65,18 +88,30 @@ app.post("/signup", async (req, res) => {
   }
 });
 
-app.post("/room", middleware, (req, res) => {
-  const data = CreateRoomSchema.safeParse(req.body);
+app.post("/room", middleware, async (req: AuthRequest, res) => {
+  const parsedData = CreateRoomSchema.safeParse(req.body);
 
-  if (!data.success) {
+  if (!parsedData.success) {
     res.json({
       message: "invalid inputs",
     });
     return;
   }
 
+  if (!req.userId) {
+    res.status(401).json({ message: "unauthorised!!" });
+    return;
+  }
+
+  const room = await prismaClient.room.create({
+    data: {
+      slug: parsedData.data.name,
+      adminId: req.userId,
+    },
+  });
+
   res.json({
-    name: "reees",
+    roomId: room.id,
   });
 });
 
