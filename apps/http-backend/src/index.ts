@@ -8,12 +8,13 @@ import {
   CreateRoomSchema,
 } from "@repo/common/validation";
 import { prismaClient } from "@repo/db/client";
+import { hashPassword } from "./util/helper";
 
 const app = express();
 
 app.use(express.json());
 
-app.post("/signin", (req, res) => {
+app.post("/signin", async (req, res) => {
   const parsedData = SignInSchema.safeParse(req.body);
   if (!parsedData.success) {
     res.json({
@@ -22,6 +23,7 @@ app.post("/signin", (req, res) => {
 
     return;
   }
+
   const userId = 1;
   const token = jwt.sign(
     {
@@ -36,6 +38,7 @@ app.post("/signin", (req, res) => {
 app.post("/signup", async (req, res) => {
   const parsedData = CreateUserSchema.safeParse(req.body);
   if (!parsedData.success) {
+    console.log(parsedData.error);
     res.json({
       message: "invalid inputs",
     });
@@ -43,11 +46,13 @@ app.post("/signup", async (req, res) => {
     return;
   }
 
+  const hashedPassword = await hashPassword(parsedData.data.password);
+
   try {
     const user = await prismaClient.user.create({
       data: {
         email: parsedData.data.username,
-        password: parsedData.data.password,
+        password: hashedPassword,
         name: parsedData.data.name,
       },
     });
@@ -56,7 +61,7 @@ app.post("/signup", async (req, res) => {
       userId: user.id,
     });
   } catch (error) {
-    res.status(411).json({ message: "user already exists!!" });
+    res.status(401).json({ message: "user already exists!!" });
   }
 });
 
